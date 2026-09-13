@@ -28,7 +28,7 @@ See [plugins/claude-usage/README.md](plugins/claude-usage/README.md) for the scr
 
 ## Requirements
 
-macOS or Linux, `jq`, `curl`, and a Claude Code login. [clauth](https://github.com/kadomatsuda/clauth) is optional — it only adds an account label.
+macOS or Linux, `jq`, `curl`, and a Claude Code login. [clauth](https://github.com/uwuclxdy/clauth) is optional — it only adds an account label.
 
 ## License
 
