@@ -1,0 +1,18 @@
+{
+  "name": "claude-usage-local",
+  "description": "Local marketplace for the claude-usage plugin",
+  "version": "0.1.0",
+  "owner": {
+    "name": "Frank Bernhardt"
+  },
+  "plugins": [
+    {
+      "name": "claude-usage",
+      "source": "./plugins/claude-usage",
+      "description": "Subscription-aware Claude usage: detects Enterprise / Team / Pro / Max and shows only what that plan meters",
+      "version": "0.1.0",
+      "author": { "name": "Frank Bernhardt" },
+      "license": "Internal"
+    }
+  ]
+}
