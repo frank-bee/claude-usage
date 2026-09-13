@@ -1,12 +1,9 @@
 ---
 name: usage-statusline
-description: Set up or restyle the claude-usage status line - Claude subscription usage and spend in the Claude Code footer. Guides the user through it. Use when asked to show usage/spend/limits in the status line or footer, to change how it looks (bar, gauge, dot, colors, thresholds, format), to set warning or critical levels, when the footer shows nothing or looks stale, or after switching accounts. Triggers - show my usage in the statusline, add spend to my footer, make it a bar, change the warning threshold, usage statusline, /usage.
+description: Set up or restyle the claude-usage status line - Claude subscription usage and spend in the Claude Code footer. Applies a named style directly, or guides the user through setup when the request is open-ended. Use when asked to show usage/spend/limits in the status line or footer, to change how it looks (bar, gauge, dot, colors, thresholds, format), to set warning or critical levels, when the footer shows nothing or looks stale, or after switching accounts. Triggers - show my usage in the statusline, add spend to my footer, make it a bar, change the warning threshold, usage statusline, /usage.
 ---
 
 # usage-statusline
-
-Guide the user through setup. Never dump this table at them and never make them edit JSON — find
-out what they have, show them what they would get, ask, then apply it and show the result.
 
 Resolve the plugin path first; it is version-pinned and moves on every update:
 
@@ -14,7 +11,23 @@ Resolve the plugin path first; it is version-pinned and moves on every update:
 P=$(jq -r '.plugins["claude-usage@claude-usage"][0].installPath' ~/.claude/plugins/installed_plugins.json)
 ```
 
-## Step 1 — look before touching anything
+## Which mode you are in
+
+**The user named a style or a setting** — "make it a bar", "warn me at 60", "no colours", "wider
+bar", "ASCII only". Just do it: merge the key into `~/.claude/claude-usage.json` (table under
+*Restyling*), re-run `usage.sh line`, show the new output. One or two lines back, no questions, no
+wizard. This is the common case; do not turn it into an interview.
+
+**The request is open-ended** — "set up usage in my status line", "show my spend in the footer",
+or the footer is broken and they do not know why. Then walk the steps below.
+
+Either way: never make them edit JSON by hand, and always show the resulting line.
+
+---
+
+## Guided setup
+
+### Step 1 — look before touching anything
 
 ```bash
 bash "$P/scripts/usage.sh" detect                    # their plan and what it meters
@@ -25,7 +38,7 @@ Tell them in one line what their account meters — a credit pool on an Enterpri
 windows on Pro or Max. This is what the segment will show, and it differs per plan, so say it
 before they choose anything.
 
-## Step 2 — show them the segment before installing
+### Step 2 — show them the segment before installing
 
 ```bash
 bash "$P/scripts/usage.sh" line
@@ -33,7 +46,7 @@ bash "$P/scripts/usage.sh" line
 
 Paste the actual output. Do not describe it in the abstract.
 
-## Step 3 — ask how it should fit in
+### Step 3 — ask how it should fit in
 
 **If they have no status line**, say so and offer the bundled one — branch, model, context bar,
 usage — then apply it:
@@ -58,7 +71,7 @@ which they want (AskUserQuestion, this order):
    usage=$(bash "<P>/scripts/usage.sh" line)
    ```
 
-## Step 4 — apply, then prove it works
+### Step 4 — apply, then prove it works
 
 Back up `~/.claude/settings.json` first. After writing, render it without waiting for the footer:
 
@@ -69,10 +82,10 @@ echo '{"model":{"display_name":"Claude Opus 5"},"context_window":{"used_percenta
 
 Show them that line. If it is wrong, fix it now rather than leaving them to discover it.
 
-## Step 5 — offer to restyle it
+## Restyling
 
-Mention that they can just ask — "make it a bar", "warn me at 60", "drop the colours". When they
-do, merge into `~/.claude/claude-usage.json` (never overwrite it) and **show the new output** by
+Reached either from the guided flow (offer it at the end) or directly when the user names a style.
+Merge into `~/.claude/claude-usage.json` — never overwrite it — and **show the new output** by
 re-running `usage.sh line`.
 
 | They say | You write |
