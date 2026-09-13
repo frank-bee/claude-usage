@@ -26,8 +26,7 @@
 #
 # Token resolution, in order:
 #   1. $CLAUDE_USAGE_CREDENTIALS if set
-#   2. ~/.claude/.credentials.json - Claude Code's own path (clauth symlinks it
-#      here when it manages the account, so this covers both cases)
+#   2. ~/.claude/.credentials.json - Claude Code's own credential file
 #   3. macOS Keychain item "Claude Code-credentials"
 #
 # Caches are keyed by refresh token, which survives access-token rotation, so

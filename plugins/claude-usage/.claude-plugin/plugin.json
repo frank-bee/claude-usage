@@ -1,11 +1,15 @@
 {
   "name": "claude-usage",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shows what your Claude subscription actually meters - detects Enterprise, Team, Pro or Max and renders only the windows or credit spend that apply, read straight from Anthropic",
   "author": {
     "name": "Frank Bernhardt"
   },
   "license": "MIT",
-  "commands": ["./commands/usage.md"],
-  "skills": ["./skills/usage-statusline"]
+  "commands": [
+    "./commands/usage.md"
+  ],
+  "skills": [
+    "./skills/usage-statusline"
+  ]
 }

@@ -3,8 +3,8 @@
 Shows what your Claude subscription actually meters, in the Claude Code status line — read straight from Anthropic, never estimated.
 
 ```
-⎇ main | @w | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟡 $120/$400 (30%)     # Enterprise
-⎇ main | @p | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟢 5h 12% ↻14:30 · 🟡 wk 74% ↻Sun   # Pro
+⎇ main | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟡 $120/$400 (30%)     # Enterprise
+⎇ main | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟢 5h 12% ↻14:30 · 🟡 wk 74% ↻Sun   # Pro
 ```
 
 ## Why it detects the plan
@@ -41,8 +41,7 @@ Ask Claude to "install the usage statusline" — the `usage-statusline` skill wr
 - Usage cached 5 min, plan cached 24 h, both under `~/.local/state/claude-usage/`, keyed by refresh token so accounts never mix.
 - `line` prints the cached value immediately and refreshes in the background behind a lock — it never blocks a render. Measured ~100 ms per render, nearly all of it `jq`.
 - A cache older than 30 min is marked `⚠︎Nh` rather than shown as current.
-- Credentials come from `~/.claude/.credentials.json` (Claude Code's own path, which clauth symlinks when it manages the account), else the macOS Keychain. `CLAUDE_USAGE_CREDENTIALS` overrides for testing another account.
-- clauth is optional. Without it the `@profile` label is simply omitted; everything else is unchanged.
+- Credentials come from `~/.claude/.credentials.json`, else the macOS Keychain item `Claude Code-credentials`. `CLAUDE_USAGE_CREDENTIALS` overrides both, for reading another account.
 
 ## Not included, deliberately
 

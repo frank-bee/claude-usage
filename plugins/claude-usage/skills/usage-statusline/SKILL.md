@@ -40,8 +40,7 @@ Run `bash <plugin>/scripts/usage.sh detect` first; it prints the plan and everyt
 
 - **Footer shows no usage segment.** Expected when the account reports no window and has no credits enabled. Confirm with `detect`.
 - **No output at all.** No credentials found. The script reads `~/.claude/.credentials.json`, then the macOS Keychain item `Claude Code-credentials`. Check `jq -r '.claudeAiOauth.accessToken' ~/.claude/.credentials.json` returns a token.
-- **`⚠︎3h` marker.** The cache has not refreshed for hours — usually an expired access token. Re-login, or if clauth manages the account, let it rotate the token.
-- **Numbers differ from clauth's TUI.** Both read the same endpoint; one of the two caches is simply older. `usage.sh fetch` forces a refresh.
+- **`⚠︎3h` marker.** The cache has not refreshed for hours — usually an expired access token. Re-login and check again.
 - **Switched accounts and the number did not change.** Caches are keyed by refresh token, so each account has its own file under `~/.local/state/claude-usage/`. A stale figure means that account's own cache is old, not that it read the wrong one.
 
 ## Do not

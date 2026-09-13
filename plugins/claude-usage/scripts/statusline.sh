@@ -35,15 +35,10 @@ if [ -n "$used_pct" ]; then
   ctx_part="${bar} ${pct_int}% ctx"
 fi
 
-# Account label, only when clauth manages the credentials - it names which of
-# several accounts this pane burns. Absent without clauth, which is fine.
-profile=$(clauth which 2>/dev/null)
-
 usage_part=$(bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/scripts/usage.sh" line 2>/dev/null)
 
 parts=()
 [ -n "$branch" ]      && parts+=("⎇ ${branch}")
-[ -n "$profile" ]     && parts+=("@${profile}")
 [ -n "$short_model" ] && parts+=("${short_model}")
 parts+=("${ctx_part}")
 [ -n "$usage_part" ]  && parts+=("${usage_part}")
