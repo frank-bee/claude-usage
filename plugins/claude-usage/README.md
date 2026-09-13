@@ -3,8 +3,8 @@
 Shows what your Claude subscription actually meters, in the Claude Code status line — read straight from Anthropic, never estimated.
 
 ```
-⎇ main | @w | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟡 $563/$745 (76%)     # Enterprise
-⎇ main | @p | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟢 5h 10% ↻11:29 · 🟢 wk 30% ↻Sun   # Pro
+⎇ main | @w | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟡 $120/$400 (30%)     # Enterprise
+⎇ main | @p | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟢 5h 12% ↻14:30 · 🟡 wk 74% ↻Sun   # Pro
 ```
 
 ## Why it detects the plan

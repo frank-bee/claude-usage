@@ -12,7 +12,7 @@
       "description": "Subscription-aware Claude usage: detects Enterprise / Team / Pro / Max and shows only what that plan meters",
       "version": "0.1.0",
       "author": { "name": "Frank Bernhardt" },
-      "license": "Internal"
+      "license": "MIT"
     }
   ]
 }

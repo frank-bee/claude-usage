@@ -30,8 +30,8 @@ Wires `scripts/statusline.sh` into the user's `statusLine` setting. Claude Code 
 
 | Plan | Segment | Why |
 |---|---|---|
-| Enterprise (usage-based seat) | `🟡 $563/$745 (76%)` | The credit pool is what binds. Windows are usually absent. |
-| Pro / Max | `🟢 5h 10% ↻11:29 · 🟢 wk 30% ↻Sun` | Rate-limit windows bind; credits are disabled. |
+| Enterprise (usage-based seat) | `🟡 $120/$400 (30%)` | The credit pool is what binds. Windows are usually absent. |
+| Pro / Max | `🟢 5h 12% ↻14:30 · 🟡 wk 74% ↻Sun` | Rate-limit windows bind; credits are disabled. |
 | Team | whichever windows the plan reports, plus credits if enabled | Nothing is hardcoded — every reported window renders. |
 
 ## Troubleshooting

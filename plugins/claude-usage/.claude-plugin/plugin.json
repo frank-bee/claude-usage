@@ -5,7 +5,7 @@
   "author": {
     "name": "Frank Bernhardt"
   },
-  "license": "Internal",
+  "license": "MIT",
   "commands": ["./commands/usage.md"],
   "skills": ["./skills/usage-statusline"]
 }
