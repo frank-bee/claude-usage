@@ -1,48 +1,108 @@
 ---
 name: usage-statusline
-description: Install, remove or troubleshoot the claude-usage status line, which shows what the current Claude subscription meters - 5h/weekly windows on Pro, Team and Max, or dollar credit spend on an Enterprise usage-based seat. Use when asked to show usage or spend in the footer/status line, when the footer shows no usage, when the numbers look stale or wrong, or after switching accounts. Triggers - usage in statusline, show my spend, footer shows nothing, install usage statusline, /usage.
+description: Set up or restyle the claude-usage status line - Claude subscription usage and spend in the Claude Code footer. Guides the user through it. Use when asked to show usage/spend/limits in the status line or footer, to change how it looks (bar, gauge, dot, colors, thresholds, format), to set warning or critical levels, when the footer shows nothing or looks stale, or after switching accounts. Triggers - show my usage in the statusline, add spend to my footer, make it a bar, change the warning threshold, usage statusline, /usage.
 ---
 
 # usage-statusline
 
-Wires `scripts/statusline.sh` into the user's `statusLine` setting. Claude Code plugins cannot declare a status line themselves — `statusLine` is a settings key — so this skill does that half.
+Guide the user through setup. Never dump this table at them and never make them edit JSON — find
+out what they have, show them what they would get, ask, then apply it and show the result.
 
-## Install
+Resolve the plugin path first; it is version-pinned and moves on every update:
 
-1. Read the current setting:
-   ```bash
-   jq -r '.statusLine // "none"' ~/.claude/settings.json
+```bash
+P=$(jq -r '.plugins["claude-usage@claude-usage"][0].installPath' ~/.claude/plugins/installed_plugins.json)
+```
+
+## Step 1 — look before touching anything
+
+```bash
+bash "$P/scripts/usage.sh" detect                    # their plan and what it meters
+jq -r '.statusLine.command // "none"' ~/.claude/settings.json   # what they already have
+```
+
+Tell them in one line what their account meters — a credit pool on an Enterprise seat, 5h/weekly
+windows on Pro or Max. This is what the segment will show, and it differs per plan, so say it
+before they choose anything.
+
+## Step 2 — show them the segment before installing
+
+```bash
+bash "$P/scripts/usage.sh" line
+```
+
+Paste the actual output. Do not describe it in the abstract.
+
+## Step 3 — ask how it should fit in
+
+**If they have no status line**, say so and offer the bundled one — branch, model, context bar,
+usage — then apply it:
+
+```json
+"statusLine": { "type": "command", "command": "CLAUDE_PLUGIN_ROOT=\"<P>\" bash \"<P>/scripts/statusline.sh\"" }
+```
+
+**If they already have one, never replace it silently.** Show them their current command and ask
+which they want (AskUserQuestion, this order):
+
+1. **Keep mine, add usage to it** — suggest this first. Their command runs unchanged with the same
+   stdin; the segment is appended to its last line. Multi-line status lines keep their shape, and
+   either half still works if the other produces nothing.
+   ```json
+   "statusLine": { "type": "command", "command": "CLAUDE_PLUGIN_ROOT=\"<P>\" bash \"<P>/scripts/wrap.sh\" '<their existing command>'" }
    ```
-2. If one already exists, show it and ask before replacing — the user may have a status line they care about.
-3. Write the plugin's script in:
+   A second argument changes the ` | ` separator.
+2. **Replace it** with the bundled `statusline.sh`.
+3. **Just give me the snippet** — they wire it in themselves:
    ```bash
-   jq '.statusLine = {"type":"command","command":"bash \"$CLAUDE_PLUGIN_ROOT/scripts/statusline.sh\""}' \
-     ~/.claude/settings.json > /tmp/s.json && mv /tmp/s.json ~/.claude/settings.json
-   ```
-   `$CLAUDE_PLUGIN_ROOT` is not expanded in settings.json, so substitute the real plugin path before writing.
-4. Verify without waiting for a render:
-   ```bash
-   echo '{"model":{"display_name":"Claude Opus 5"},"context_window":{"used_percentage":34},"cwd":"'$HOME'"}' \
-     | bash <plugin>/scripts/statusline.sh
+   usage=$(bash "<P>/scripts/usage.sh" line)
    ```
 
-## What each plan shows
+## Step 4 — apply, then prove it works
 
-| Plan | Segment | Why |
-|---|---|---|
-| Enterprise (usage-based seat) | `🟡 $120/$400 (30%)` | The credit pool is what binds. Windows are usually absent. |
-| Pro / Max | `🟢 5h 12% ↻14:30 · 🟡 wk 74% ↻Sun` | Rate-limit windows bind; credits are disabled. |
-| Team | whichever windows the plan reports, plus credits if enabled | Nothing is hardcoded — every reported window renders. |
+Back up `~/.claude/settings.json` first. After writing, render it without waiting for the footer:
+
+```bash
+echo '{"model":{"display_name":"Claude Opus 5"},"context_window":{"used_percentage":34},"cwd":"'$HOME'"}' \
+  | bash -c "$(jq -r '.statusLine.command' ~/.claude/settings.json)"
+```
+
+Show them that line. If it is wrong, fix it now rather than leaving them to discover it.
+
+## Step 5 — offer to restyle it
+
+Mention that they can just ask — "make it a bar", "warn me at 60", "drop the colours". When they
+do, merge into `~/.claude/claude-usage.json` (never overwrite it) and **show the new output** by
+re-running `usage.sh line`.
+
+| They say | You write |
+|---|---|
+| make it a bar | `{"style": "bar"}` |
+| ASCII only / no unicode | `{"style": "bar-ascii"}` |
+| just colour, no icon | `{"style": "plain"}` |
+| warn at 60, red at 80 | `{"warn": 60, "crit": 80}` |
+| no colours | `{"color": "never"}` |
+| wider bar | `{"width": 20}` |
+| just the percentage | `{"window": "{name} {pct}", "spend": "{pct}"}` |
+
+Full key list: `style` (`dot`/`bar`/`bar-ascii`/`plain`), `warn`, `crit`, `color`
+(`auto`/`always`/`never`), `width`, `separator`, `window`, `spend`. Tokens are `{gauge}` `{name}`
+`{pct}` `{reset}` for windows and `{gauge}` `{used}` `{limit}` `{pct}` for spend. Severity drives
+glyph *and* colour, so it still reads with colour off.
 
 ## Troubleshooting
 
-Run `bash <plugin>/scripts/usage.sh detect` first; it prints the plan and everything the API reports.
+Run `usage.sh detect` first — it prints the plan and everything the API reports.
 
-- **Footer shows no usage segment.** Expected when the account reports no window and has no credits enabled. Confirm with `detect`.
-- **No output at all.** No credentials found. The script reads `~/.claude/.credentials.json`, then the macOS Keychain item `Claude Code-credentials`. Check `jq -r '.claudeAiOauth.accessToken' ~/.claude/.credentials.json` returns a token.
-- **`⚠︎3h` marker.** The cache has not refreshed for hours — usually an expired access token. Re-login and check again.
-- **Switched accounts and the number did not change.** Caches are keyed by refresh token, so each account has its own file under `~/.local/state/claude-usage/`. A stale figure means that account's own cache is old, not that it read the wrong one.
+| Symptom | Cause |
+|---|---|
+| No usage segment | The account reports no window and has no credits enabled. Normal; confirm with `detect`. |
+| No output at all | No credentials. Check `jq -r '.claudeAiOauth.accessToken' ~/.claude/.credentials.json`. |
+| `⚠︎3h` marker | Cache is hours old, usually an expired token. Re-login. |
+| Stopped after a plugin update | The install path is version-pinned. Re-resolve `<P>` and rewrite the `statusLine` command. |
 
 ## Do not
 
-Do not reintroduce a locally computed spend estimate (ccusage token counts × prices). It cannot distinguish plan-covered usage from credit-billed usage, so it disagrees with the real bill. The endpoint's figure is Anthropic's own accounting, in minor units.
+Do not reintroduce a spend estimate derived from token counts. It cannot tell plan-covered usage
+from credit-billed usage, so it disagrees with the real bill. These figures are Anthropic's own
+accounting.

@@ -1,6 +1,6 @@
 {
   "name": "claude-usage",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shows what your Claude subscription actually meters - detects Enterprise, Team, Pro or Max and renders only the windows or credit spend that apply, read straight from Anthropic",
   "author": {
     "name": "Frank Bernhardt"

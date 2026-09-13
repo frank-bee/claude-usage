@@ -1,7 +1,7 @@
 {
   "name": "claude-usage",
   "description": "Claude Code plugin: subscription-aware usage and spend in the status line",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "owner": {
     "name": "Frank Bernhardt"
   },
@@ -10,7 +10,7 @@
       "name": "claude-usage",
       "source": "./plugins/claude-usage",
       "description": "Subscription-aware Claude usage: detects Enterprise / Team / Pro / Max and shows only what that plan meters",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "author": {
         "name": "Frank Bernhardt"
       },

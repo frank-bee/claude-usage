@@ -67,11 +67,18 @@ age_of() {
   echo $(( $(date +%s) - $(jq -r '._fetched_at // 0' "$1" 2>/dev/null || echo 0) ))
 }
 
+# Anthropic rate-limits this endpoint hard for clients that do not identify
+# themselves; every tool reading it converged on the Claude Code UA plus a cache
+# of at least a few minutes. Without both you get persistent 429s.
+UA="claude-code/$(claude --version 2>/dev/null | awk '{print $1}')"
+[ "$UA" = "claude-code/" ] && UA="claude-code/2.1.270"
+
 # $1 = endpoint, $2 = cache file, $3 = jq guard that must hold for a valid body
 get() {
   local out
   out=$(curl -sS --max-time 8 "$BASE/$1" \
           -H "Authorization: Bearer $token" \
+          -H "User-Agent: $UA" \
           -H "anthropic-beta: oauth-2025-04-20" 2>/dev/null) || return 1
   printf '%s' "$out" | jq -e "$3" >/dev/null 2>&1 || return 1
   printf '%s' "$out" | jq --argjson t "$(date +%s)" '. + {_fetched_at: $t}' > "$2.tmp" \
@@ -99,13 +106,58 @@ tier() {
   ' "$PROFILE_CACHE" 2>/dev/null
 }
 
+# --- appearance -------------------------------------------------------------
+#
+# Config lives in ~/.claude/claude-usage.json (override with $CLAUDE_USAGE_CONFIG).
+# Every key is optional; an absent or malformed file leaves the defaults below in
+# place, so a broken config degrades to the stock line rather than to nothing.
+# Users are not expected to edit it by hand - ask Claude, and the plugin's skill
+# writes it.
+CONFIG_FILE="${CLAUDE_USAGE_CONFIG:-$HOME/.claude/claude-usage.json}"
+DEFAULTS='{
+  "window":    "{gauge} {name} {pct}{reset}",
+  "spend":     "{gauge} {used}/{limit} ({pct})",
+  "style":     "dot",
+  "color":     "auto",
+  "warn":      70,
+  "crit":      90,
+  "width":     10,
+  "separator": " · "
+}'
+
+cfg=$DEFAULTS
+if [ -r "$CONFIG_FILE" ]; then
+  merged=$(jq -n --argjson d "$DEFAULTS" --slurpfile u "$CONFIG_FILE" '$d + ($u[0] // {})' 2>/dev/null)
+  [ -n "$merged" ] && cfg=$merged
+fi
+
+# Colour capability. The status line is never a tty - Claude Code captures the
+# output - so probing one is useless and env vars are the only signal.
+# FORCE_COLOR deliberately outranks NO_COLOR, matching the usual convention.
+color_on() {
+  case "$(jq -r '.color' <<<"$cfg")" in
+    always) return 0 ;;
+    never)  return 1 ;;
+  esac
+  case "${FORCE_COLOR:-}" in
+    0|false) return 1 ;;
+    ?*)      return 0 ;;
+  esac
+  [ -n "${NO_COLOR:-}" ] && return 1
+  [ "${TERM:-}" = "dumb" ] && return 1
+  case "${COLORTERM:-}" in truecolor|24bit) return 0 ;; esac
+  case "${TERM:-}" in *-256color|*-truecolor|xterm*|screen*|tmux*|rxvt*) return 0 ;; esac
+  return 1
+}
+if color_on; then USE_COLOR=1; else USE_COLOR=0; fi
+
 # One statusline segment per thing this subscription actually meters.
 #
 # Two shapes carry the same windows and either may be empty at any moment:
 # `limits[]` (generic, forward-compatible) and the named `five_hour` /
-# `seven_day` / `seven_day_*` fields. Enterprise in particular reports []
-# in limits while still populating five_hour once a window is live, so both
-# are normalised into one list and deduped by kind.
+# `seven_day` / `seven_day_*` fields. Enterprise in particular reports [] in
+# limits while still populating five_hour once a window is live, so both are
+# normalised into one list and deduped by kind.
 WINDOWS_JQ='
   def norm:
     [ ( (.limits // [])[]
@@ -120,34 +172,69 @@ WINDOWS_JQ='
 '
 render() {
   [ -f "$USAGE_CACHE" ] || return 0
-  jq -r --argjson age "$(age_of "$USAGE_CACHE")" --argjson warn "$STALE_WARN" "
+  jq -r --argjson age "$(age_of "$USAGE_CACHE")" --argjson warn "$STALE_WARN" \
+        --argjson cfg "$cfg" --argjson usecolor "$USE_COLOR" "
     $WINDOWS_JQ"'
-    def dot($p): if $p >= 90 then "🔴" elif $p >= 70 then "🟡" else "🟢" end;
+    # severity: 0 normal, 1 warning, 2 critical. Drives glyph AND colour, so the
+    # distinction survives a terminal that shows no colour at all.
+    def sev($p): if $p >= $cfg.crit then 2 elif $p >= $cfg.warn then 1 else 0 end;
+
+    def paint($s; $p):
+      if $usecolor == 0 then $s
+      else (["\u001b[32m","\u001b[33m","\u001b[31m"][sev($p)]) + $s + "\u001b[0m"
+      end;
+
+    def gauge($p):
+      ($cfg.width // 10) as $w
+      | (($p / 100 * $w) | floor | if . > $w then $w else . end) as $n
+      | if   $cfg.style == "dot"       then ["🟢","🟡","🔴"][sev($p)]
+        elif $cfg.style == "bar"       then paint(("▓" * $n) + ("░" * ($w - $n)); $p)
+        elif $cfg.style == "bar-ascii" then paint(("=" * $n) + ("-" * ($w - $n)); $p)
+        else ""   # plain: colour alone carries severity
+        end;
+
     def at($t; $fmt): ($t | sub("\\.[0-9]+";"") | sub("\\+00:00$";"Z")
                           | fromdateiso8601 | strflocaltime($fmt));
     # a session window resets today, so a clock reads best; anything weekly
     # resets days out, where the weekday is the useful part
     def wname($k):
-      if   $k == "session"    then {name: "5h",   fmt: "%H:%M"}
-      elif $k == "weekly_all" then {name: "wk",   fmt: "%a"}
+      if   $k == "session"    then {name: "5h", fmt: "%H:%M"}
+      elif $k == "weekly_all" then {name: "wk", fmt: "%a"}
       elif $k | startswith("weekly_")
            then {name: ($k | ltrimstr("weekly_")), fmt: "%a"}
       else {name: $k, fmt: "%a"} end;
 
+    # {token} substitution. An empty gauge (style "plain") leaves a stray space
+    # behind, so collapse doubled and edge spaces afterwards.
+    def fill($tpl; $map; $p):
+      ($map | to_entries
+            | reduce .[] as $e ($tpl; gsub("\\{" + $e.key + "\\}"; $e.value)))
+      | gsub("  +"; " ") | sub("^ +"; "") | sub(" +$"; "")
+      | if $cfg.style == "plain" then paint(.; $p) else . end;
+
     [ ( norm[]
+        | .percent as $p
         | wname(.kind) as $l
-        | dot(.percent) + " " + $l.name + " " + (.percent | floor | tostring) + "%"
-          + (if .resets_at then " ↻" + at(.resets_at; $l.fmt) else "" end) ),
+        | fill($cfg.window;
+               { gauge: gauge($p),
+                 name:  $l.name,
+                 pct:   (($p | floor | tostring) + "%"),
+                 reset: (if .resets_at then " ↻" + at(.resets_at; $l.fmt) else "" end) };
+               $p) ),
 
       ( if (.spend.enabled == true) and ((.spend.limit.amount_minor // 0) > 0)
         then (.spend.percent // 0) as $p
-          | dot($p)
-            + " $" + ((.spend.used.amount_minor / 100) | floor | tostring)
-            + "/$" + ((.spend.limit.amount_minor / 100) | floor | tostring)
-            + " (" + ($p | floor | tostring) + "%)"
+          | fill($cfg.spend;
+                 { gauge: gauge($p),
+                   name:  "spend",
+                   pct:   (($p | floor | tostring) + "%"),
+                   reset: "",
+                   used:  ("$" + ((.spend.used.amount_minor  / 100) | floor | tostring)),
+                   limit: ("$" + ((.spend.limit.amount_minor / 100) | floor | tostring)) };
+                 $p)
         else empty end )
     ]
-    | join(" · ")
+    | join($cfg.separator)
     | if . == "" then empty
       elif $age > $warn then . + " ⚠︎" + (($age / 3600) | floor | tostring) + "h"
       else . end

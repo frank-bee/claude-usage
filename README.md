@@ -1,13 +1,16 @@
 # claude-usage
 
-A Claude Code plugin that shows what your Claude subscription actually meters — read straight from Anthropic's own usage endpoint, never estimated from token counts.
+Your Claude subscription's real usage in the Claude Code status line — read from Anthropic's own
+accounting, never estimated from token counts.
 
 ```
-⎇ main | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟡 $120/$400 (30%)                  # Enterprise seat
-⎇ main | Opus 5 | ▓▓▓░░░░░░░ 34% ctx | 🟢 5h 12% ↻14:30 · 🟡 wk 74% ↻Sun   # Pro / Max
+🟡 $120/$400 (30%)                  Enterprise seat — the credit pool
+🟢 5h 12% ↻14:30 · 🟡 wk 74% ↻Sun   Pro / Max — the rate-limit windows
 ```
 
-Different plans meter different things, so the plugin asks the account instead of assuming: an Enterprise usage-based seat is bounded by a dollar credit pool, while Pro and Max are bounded by 5h and weekly rate-limit windows. Whatever your plan reports is what you see.
+Plans meter different things, so the plugin asks your account which it is and shows only what
+applies. **Enterprise seats are the point:** they have no 5h or weekly window, so every other
+status line shows them `--`. This one shows the credit pool that actually binds.
 
 ## Install
 
@@ -16,20 +19,27 @@ claude plugin marketplace add frank-bee/claude-usage
 claude plugin install claude-usage@claude-usage
 ```
 
-Then ask Claude to "install the usage statusline" — the bundled skill writes the `statusLine` key into your settings. (Plugins cannot declare a status line themselves.)
+Then ask Claude:
+
+> add usage to my status line
+
+It detects whether you already have one and asks before changing it — your existing status line is
+kept and the segment appended, unless you say otherwise.
 
 ## Use
 
-```bash
-/usage          # plan, every window, credits — explained
-```
+Ask Claude for what you want; it writes the config for you.
 
-See [plugins/claude-usage/README.md](plugins/claude-usage/README.md) for the script API, caching behaviour and troubleshooting.
+> make it a bar · warn me at 60 · drop the colours · just show the percentage
+
+Or check the account directly:
+
+```bash
+/usage
+```
 
 ## Requirements
 
-macOS or Linux, `jq`, `curl`, and a Claude Code login.
+macOS or Linux, `jq`, `curl`, a Claude Code login.
 
-## License
-
-MIT
+[Details, script API, troubleshooting →](plugins/claude-usage/README.md) · MIT
