@@ -157,18 +157,27 @@ if color_on; then USE_COLOR=1; else USE_COLOR=0; fi
 # `limits[]` (generic, forward-compatible) and the named `five_hour` /
 # `seven_day` / `seven_day_*` fields. Enterprise in particular reports [] in
 # limits while still populating five_hour once a window is live, so both are
-# normalised into one list and deduped by kind.
+# normalised into one list and deduped.
+#
+# A `weekly_scoped` row appears once PER MODEL, carrying the model name in
+# scope.model.display_name - so identity is kind plus that name, not kind alone,
+# or every model but the first is silently dropped.
 WINDOWS_JQ='
   def norm:
     [ ( (.limits // [])[]
         | select(.percent != null)
-        | {kind: .kind, percent: .percent, resets_at: .resets_at} ),
+        | {kind: .kind,
+           label: (.scope.model.display_name // null),
+           percent: .percent,
+           resets_at: .resets_at} ),
       ( {session: .five_hour, weekly_all: .seven_day,
          weekly_opus: .seven_day_opus, weekly_sonnet: .seven_day_sonnet}
         | to_entries[]
         | select(.value != null and .value.utilization != null)
-        | {kind: .key, percent: .value.utilization, resets_at: .value.resets_at} ) ]
-    | group_by(.kind) | map(.[0]);
+        | {kind: .key, label: null,
+           percent: .value.utilization, resets_at: .value.resets_at} ) ]
+    | group_by([.kind, .label]) | map(.[0])
+    | .[0:8];
 '
 render() {
   [ -f "$USAGE_CACHE" ] || return 0
@@ -197,9 +206,10 @@ render() {
                           | fromdateiso8601 | strflocaltime($fmt));
     # a session window resets today, so a clock reads best; anything weekly
     # resets days out, where the weekday is the useful part
-    def wname($k):
+    def wname($k; $label):
       if   $k == "session"    then {name: "5h", fmt: "%H:%M"}
       elif $k == "weekly_all" then {name: "wk", fmt: "%a"}
+      elif $label != null     then {name: $label, fmt: "%a"}
       elif $k | startswith("weekly_")
            then {name: ($k | ltrimstr("weekly_")), fmt: "%a"}
       else {name: $k, fmt: "%a"} end;
@@ -214,7 +224,7 @@ render() {
 
     [ ( norm[]
         | .percent as $p
-        | wname(.kind) as $l
+        | wname(.kind; .label) as $l
         | fill($cfg.window;
                { gauge: gauge($p),
                  name:  $l.name,
@@ -236,7 +246,9 @@ render() {
     ]
     | join($cfg.separator)
     | if . == "" then empty
-      elif $age > $warn then . + " ⚠︎" + (($age / 3600) | floor | tostring) + "h"
+      elif $age > $warn
+      then . + " ⚠︎" + (if $age >= 3600 then (($age / 3600) | floor | tostring) + "h"
+                        else (($age / 60) | floor | tostring) + "m" end)
       else . end
   ' "$USAGE_CACHE" 2>/dev/null
 }
@@ -295,7 +307,8 @@ case "${1:-line}" in
        then "rate limits   none reported right now\n              (a window is reported once there is usage inside it)"
        else "rate limits   " + (($w | length) | tostring) + " window(s)" end),
       ($w[]
-        | "  " + (.kind) + "  " + (.percent | floor | tostring) + "%"
+        | "  " + (.kind) + (if .label then " (" + .label + ")" else "" end)
+          + "  " + (.percent | floor | tostring) + "%"
           + (if .resets_at then "  resets " + at(.resets_at) else "" end)),
       "",
       (if .spend.enabled == true

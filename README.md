@@ -50,13 +50,17 @@ thing that binds:
 🟢 5h 12% ↻14:30 · 🟡 wk 74% ↻Sun
 ```
 
-**Team** — whichever the seat enforces. A standard seat looks like Pro. A seat with extra-usage
-credits enabled reports both, and both are shown (rendered from a constructed response — untested
-against a real Team seat):
+**Team** — whichever the seat enforces. A standard seat looks like Pro; a seat with extra-usage
+credits reports both, and both are shown. Team seats can also carry **per-model weekly limits**
+(`weekly_scoped`), which are labelled by model:
 
 ```
 🟢 5h 45% ↻14:30 · 🟢 wk 62% ↻Sun · 🟢 $36/$200 (18%)
+🟢 5h 12% ↻14:30 · 🟢 wk 40% ↻Sun · 🟡 Opus 88% ↻Sun · 🟢 Sonnet 21% ↻Sun
 ```
+
+The Team samples are rendered from constructed responses — I had no Team seat to read from — but
+the per-model shape is taken from a project that reads it in production.
 
 `/api/oauth/profile` gives the plan, `/api/oauth/usage` the numbers. Windows arrive in two shapes —
 the generic `limits[]` array and the named `five_hour` / `seven_day*` fields — and either can be
