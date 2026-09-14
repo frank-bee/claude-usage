@@ -5,17 +5,28 @@ description: Set up or restyle the claude-usage status line - Claude subscriptio
 
 # usage-statusline
 
-Resolve the plugin path first; it is version-pinned and moves on every update:
+## Install the shim first, and address everything through it
+
+The plugin's own directory is version-pinned and moves on every update, so nothing outside the
+plugin may point at it directly. `scripts/shim.sh` resolves the current install at call time; copy
+it once to a fixed path and use that path everywhere after:
 
 ```bash
 P=$(jq -r '.plugins["claude-usage@claude-usage"][0].installPath' ~/.claude/plugins/installed_plugins.json)
+install -m 755 "$P/scripts/shim.sh" ~/.claude/claude-usage
 ```
+
+From here on everything goes through that one path - `line`, `detect`, `json`, `fetch`, plus
+`statusline` and `wrap` for the two `settings.json` shapes below. Use `$P` for this copy step and
+nothing else: never write it into `settings.json` or into the user's own scripts, or the next
+plugin update breaks them. Never copy `usage.sh`, `statusline.sh` or `wrap.sh` out of the plugin
+either - a copy stops receiving updates. Only the shim is copied, because it holds no logic.
 
 ## Which mode you are in
 
 **The user named a style or a setting** — "make it a bar", "warn me at 60", "no colours", "wider
 bar", "ASCII only". Just do it: merge the key into `~/.claude/claude-usage.json` (table under
-*Restyling*), re-run `usage.sh line`, show the new output. One or two lines back, no questions, no
+*Restyling*), re-run `claude-usage line`, show the new output. One or two lines back, no questions, no
 wizard. This is the common case; do not turn it into an interview.
 
 **The request is open-ended** — "set up usage in my status line", "show my spend in the footer",
@@ -30,7 +41,7 @@ Either way: never make them edit JSON by hand, and always show the resulting lin
 ### Step 1 — look before touching anything
 
 ```bash
-bash "$P/scripts/usage.sh" detect                    # their plan and what it meters
+bash "$HOME/.claude/claude-usage" detect                    # their plan and what it meters
 jq -r '.statusLine.command // "none"' ~/.claude/settings.json   # what they already have
 ```
 
@@ -41,35 +52,40 @@ before they choose anything.
 ### Step 2 — show them the segment before installing
 
 ```bash
-bash "$P/scripts/usage.sh" line
+bash "$HOME/.claude/claude-usage" line
 ```
 
 Paste the actual output. Do not describe it in the abstract.
 
 ### Step 3 — ask how it should fit in
 
-**If they have no status line**, say so and offer the bundled one — branch, model, context bar,
-usage — then apply it:
+**If they already have a status line, extend it — do not replace it, and do not touch
+`settings.json` at all.** This is the common case and the best outcome: their file keeps whatever
+it already does, they decide where the segment sits in the line, and no plugin update can break
+the wiring. Read their script, find where it assembles the output, and add one line:
 
-```json
-"statusLine": { "type": "command", "command": "CLAUDE_PLUGIN_ROOT=\"<P>\" bash \"<P>/scripts/statusline.sh\"" }
+```bash
+usage_part=$(bash "$HOME/.claude/claude-usage" line 2>/dev/null)
 ```
 
-**If they already have one, never replace it silently.** Show them their current command and ask
-which they want (AskUserQuestion, this order):
+then place `$usage_part` where they want it. Show them the diff before writing.
 
-1. **Keep mine, add usage to it** — suggest this first. Their command runs unchanged with the same
-   stdin; the segment is appended to its last line. Multi-line status lines keep their shape, and
-   either half still works if the other produces nothing.
-   ```json
-   "statusLine": { "type": "command", "command": "CLAUDE_PLUGIN_ROOT=\"<P>\" bash \"<P>/scripts/wrap.sh\" '<their existing command>'" }
-   ```
-   A second argument changes the ` | ` separator.
-2. **Replace it** with the bundled `statusline.sh`.
-3. **Just give me the snippet** — they wire it in themselves:
-   ```bash
-   usage=$(bash "<P>/scripts/usage.sh" line)
-   ```
+**If their status line is a program they cannot edit** (a third-party tool, a binary), wrap it
+instead. This does rewrite `settings.json`, so prefer the option above whenever their script is
+editable. Their command runs unchanged with the same stdin and the segment is appended to its last
+line, so a multi-line status line keeps its shape:
+
+```json
+"statusLine": { "type": "command", "command": "bash \"$HOME/.claude/claude-usage\" wrap '<their existing command>'" }
+```
+
+A third argument changes the ` | ` separator.
+
+**If they have no status line at all**, offer the bundled one — branch, model, context bar, usage:
+
+```json
+"statusLine": { "type": "command", "command": "bash \"$HOME/.claude/claude-usage\" statusline" }
+```
 
 ### Step 4 — apply, then prove it works
 
@@ -105,14 +121,14 @@ glyph *and* colour, so it still reads with colour off.
 
 ## Troubleshooting
 
-Run `usage.sh detect` first — it prints the plan and everything the API reports.
+Run `claude-usage detect` first — it prints the plan and everything the API reports.
 
 | Symptom | Cause |
 |---|---|
 | No usage segment | The account reports no window and has no credits enabled. Normal; confirm with `detect`. |
 | No output at all | No credentials. Check `jq -r '.claudeAiOauth.accessToken' ~/.claude/.credentials.json`. |
 | `⚠︎3h` marker | Cache is hours old, usually an expired token. Re-login. |
-| Stopped after a plugin update | The install path is version-pinned. Re-resolve `<P>` and rewrite the `statusLine` command. |
+| Stopped after a plugin update | Something points into the version-pinned plugin directory instead of `~/.claude/claude-usage`. Repoint it at the shim. |
 
 ## Do not
 

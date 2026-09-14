@@ -28,8 +28,12 @@ Then ask Claude:
 > add usage to my status line
 
 It checks what you already have and asks before changing anything. If you already run a status
-line, the default is to **keep it and append the segment** — see [Combining with an existing status
+line, the default is to **keep it and add one line to it** — see [Combining with an existing status
 line](#combining-with-an-existing-status-line).
+
+Setup also copies a small shim to `~/.claude/claude-usage`. The plugin's own directory is
+version-pinned and moves on every update, so that fixed path is what everything else points at —
+your status line keeps working across updates instead of breaking on the next one.
 
 Requirements: macOS or Linux, `jq` (1.6+, what Debian stable and Ubuntu jammy ship), `curl`, a Claude Code login.
 
@@ -169,17 +173,28 @@ a tty (Claude Code captures the output), so env vars are the only signal availab
 
 ## Combining with an existing status line
 
-`usage.sh line` prints one segment and nothing else. That is the whole integration surface — it has
-no opinion about the rest of your line.
+`claude-usage line` prints one segment and nothing else. That is the whole integration surface — it
+has no opinion about the rest of your line.
 
-### Wrap what you already have
+### Add one line to your own script — preferred
 
-Point your `statusLine` at `wrap.sh` with your existing command as its argument:
+If your status line is a script you can edit, this is the best way in. `settings.json` is never
+touched, so a plugin update cannot break the wiring, and you decide where the segment sits:
+
+```bash
+usage_part=$(bash "$HOME/.claude/claude-usage" line 2>/dev/null)
+```
+
+Then place `$usage_part` wherever you assemble your output.
+
+### Wrap a status line you cannot edit
+
+For a third-party tool or a binary, wrap it instead — this one does rewrite `settings.json`:
 
 ```json
 "statusLine": {
   "type": "command",
-  "command": "bash /path/to/wrap.sh '~/.claude/my-statusline.sh'"
+  "command": "bash \"$HOME/.claude/claude-usage\" wrap '~/.claude/my-statusline.sh'"
 }
 ```
 
@@ -190,7 +205,7 @@ line:
 my line: Opus 5 | 🟢 $120/$400 (30%)
 ```
 
-A second argument changes the ` | ` separator. Behaviour worth knowing:
+A third argument changes the ` | ` separator. Behaviour worth knowing:
 
 - **Multi-line status lines keep their shape** — only the last line gets the segment.
 - **If your command fails or prints nothing**, the segment stands alone.
@@ -262,7 +277,7 @@ credits       $120.0 of $400  (30%, normal)
 | No output at all | No credentials found. Check `jq -r '.claudeAiOauth.accessToken' ~/.claude/.credentials.json`. |
 | `⚠︎3h` marker | The cache has not refreshed in hours, usually an expired token. Re-login. |
 | `⚠︎ claude-usage: …` marker | The render program failed. The message is truncated to fit the line; the full one is in `${XDG_STATE_HOME:-~/.local/state}/claude-usage/error.log`. |
-| Stopped after a plugin update | The install path is version-pinned and moves on every update. Re-resolve it from `~/.claude/plugins/installed_plugins.json` and rewrite the `statusLine` command. |
+| Stopped after a plugin update | Something points into the version-pinned plugin directory instead of going through `~/.claude/claude-usage`. Repoint it at the shim; the shim itself survives updates. |
 
 ---
 
