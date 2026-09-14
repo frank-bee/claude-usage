@@ -31,7 +31,7 @@ It checks what you already have and asks before changing anything. If you alread
 line, the default is to **keep it and append the segment** — see [Combining with an existing status
 line](#combining-with-an-existing-status-line).
 
-Requirements: macOS or Linux, `jq`, `curl`, a Claude Code login.
+Requirements: macOS or Linux, `jq` (1.6+, what Debian stable and Ubuntu jammy ship), `curl`, a Claude Code login.
 
 ---
 
@@ -261,6 +261,7 @@ credits       $120.0 of $400  (30%, normal)
 | No usage segment | The account reports no window and has no credits enabled. Normal — confirm with `detect`. |
 | No output at all | No credentials found. Check `jq -r '.claudeAiOauth.accessToken' ~/.claude/.credentials.json`. |
 | `⚠︎3h` marker | The cache has not refreshed in hours, usually an expired token. Re-login. |
+| `⚠︎ claude-usage: …` marker | The render program failed. The message is truncated to fit the line; the full one is in `${XDG_STATE_HOME:-~/.local/state}/claude-usage/error.log`. |
 | Stopped after a plugin update | The install path is version-pinned and moves on every update. Re-resolve it from `~/.claude/plugins/installed_plugins.json` and rewrite the `statusLine` command. |
 
 ---

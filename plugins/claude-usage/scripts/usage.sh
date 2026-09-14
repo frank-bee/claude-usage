@@ -39,6 +39,7 @@ USAGE_TTL="${CLAUDE_USAGE_TTL:-300}"      # usage figures: 5 min
 PROFILE_TTL="${CLAUDE_PROFILE_TTL:-86400}" # subscription type: a day
 STALE_WARN="${CLAUDE_USAGE_STALE_WARN:-1800}"
 BASE="https://api.anthropic.com/api/oauth"
+ERROR_LOG="$STATE_DIR/error.log"
 
 command -v jq >/dev/null 2>&1 || exit 0
 mkdir -p "$STATE_DIR"
@@ -179,8 +180,23 @@ WINDOWS_JQ='
     | group_by([.kind, .label]) | map(.[0])
     | .[0:8];
 '
+# A statusline has nowhere to print a stack trace, so a failing jq used to
+# render as an empty segment - indistinguishable from "no windows right now",
+# which is a legitimate state. Keep the segment quiet but say *something*, and
+# park the real message in a file the user can be pointed at.
 render() {
   [ -f "$USAGE_CACHE" ] || return 0
+  local out
+  out=$(render_jq 2>"$ERROR_LOG") || {
+    printf '⚠︎ claude-usage: %.60s\n' \
+      "$(head -1 "$ERROR_LOG" 2>/dev/null || echo "jq failed")"
+    return 0
+  }
+  [ -n "$out" ] && printf '%s\n' "$out"
+  return 0
+}
+
+render_jq() {
   jq -r --argjson age "$(age_of "$USAGE_CACHE")" --argjson warn "$STALE_WARN" \
         --argjson cfg "$cfg" --argjson usecolor "$USE_COLOR" "
     $WINDOWS_JQ"'
@@ -206,10 +222,15 @@ render() {
                           | fromdateiso8601 | strflocaltime($fmt));
     # a session window resets today, so a clock reads best; anything weekly
     # resets days out, where the weekday is the useful part
-    def wname($k; $label):
+    #
+    # $lbl, not $label: `label` is a jq keyword (label $out | ... break $out) and
+    # jq 1.6 - still what Debian stable and Ubuntu jammy ship - rejects it as a
+    # binding name at parse time, killing the whole program. Same for $if, $then,
+    # $reduce, $foreach, $try, $catch, $import, $include, $def, $as, $and, $or.
+    def wname($k; $lbl):
       if   $k == "session"    then {name: "5h", fmt: "%H:%M"}
       elif $k == "weekly_all" then {name: "wk", fmt: "%a"}
-      elif $label != null     then {name: $label, fmt: "%a"}
+      elif $lbl != null       then {name: $lbl, fmt: "%a"}
       elif $k | startswith("weekly_")
            then {name: ($k | ltrimstr("weekly_")), fmt: "%a"}
       else {name: $k, fmt: "%a"} end;
@@ -250,7 +271,7 @@ render() {
       then . + " ⚠︎" + (if $age >= 3600 then (($age / 3600) | floor | tostring) + "h"
                         else (($age / 60) | floor | tostring) + "m" end)
       else . end
-  ' "$USAGE_CACHE" 2>/dev/null
+  ' "$USAGE_CACHE"
 }
 
 refresh_if_stale() {
@@ -296,7 +317,7 @@ case "${1:-line}" in
         + (if .organization.seat_tier then "\nseat          " + .organization.seat_tier else "" end)
         + (if .organization.subscription_status
            then "\nstatus        " + .organization.subscription_status else "" end)
-    ' "$PROFILE_CACHE" 2>/dev/null
+    ' "$PROFILE_CACHE"
 
     jq -r "$WINDOWS_JQ"'
       def at($t): ($t | sub("\\.[0-9]+";"") | sub("\\+00:00$";"Z")
@@ -317,7 +338,7 @@ case "${1:-line}" in
               + "  (" + ((.spend.percent // 0) | floor | tostring) + "%, "
               + (.spend.severity // "normal") + ")"
        else "credits       not enabled on this account" end)
-    ' "$USAGE_CACHE" 2>/dev/null
+    ' "$USAGE_CACHE"
     ;;
 
   *)
