@@ -206,10 +206,10 @@ render() {
                           | fromdateiso8601 | strflocaltime($fmt));
     # a session window resets today, so a clock reads best; anything weekly
     # resets days out, where the weekday is the useful part
-    def wname($k; $label):
+    def wname($k; $lbl):
       if   $k == "session"    then {name: "5h", fmt: "%H:%M"}
       elif $k == "weekly_all" then {name: "wk", fmt: "%a"}
-      elif $label != null     then {name: $label, fmt: "%a"}
+      elif $lbl != null       then {name: $lbl, fmt: "%a"}
       elif $k | startswith("weekly_")
            then {name: ($k | ltrimstr("weekly_")), fmt: "%a"}
       else {name: $k, fmt: "%a"} end;
