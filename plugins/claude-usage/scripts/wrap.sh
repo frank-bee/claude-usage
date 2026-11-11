@@ -25,7 +25,14 @@ input=$(cat)
 # Give the wrapped command the untouched stdin payload.
 existing=$(printf '%s' "$input" | eval "$CMD" 2>/dev/null)
 
-segment=$(bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/scripts/usage.sh" line 2>/dev/null)
+# Session cost rides on the same stdin; usage.sh shows it only if configured.
+if command -v jq >/dev/null 2>&1; then
+  cost=$(printf '%s' "$input" | jq -r '.cost.total_cost_usd // empty' 2>/dev/null)
+else
+  cost=$(printf '%s' "$input" | python3 -c "import sys,json; v=json.load(sys.stdin).get('cost',{}).get('total_cost_usd'); print(v if v is not None else '')" 2>/dev/null)
+fi
+
+segment=$(CLAUDE_USAGE_SESSION_COST="$cost" bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/scripts/usage.sh" line 2>/dev/null)
 
 if [ -z "$segment" ]; then
   printf '%s\n' "$existing"

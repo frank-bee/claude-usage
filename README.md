@@ -132,6 +132,27 @@ Pro / Max       5h 12% ↻14:30 · wk 74% ↻Sun
 ▓░░░░░░░░░ 5h  ▓▓▓▓▓▓▓░░░ wk                {"window": "{gauge} {name}", "separator": "  "}
 ```
 
+### Session cost (opt-in)
+
+Off by default. Set `session` and the current session's cost leads the segment:
+
+```
+$1.23 · 🟢 $120/$400 (30%)                  {"session": "{cost}"}
+```
+
+This figure is **Claude Code's own**: it arrives on the status line's stdin as
+`.cost.total_cost_usd`, and Claude Code computes it from token counts at list price. It is a
+per-session estimate, not account accounting, so it is never mixed into the windows or the credit
+pool. Those stay Anthropic's numbers. It has no gauge or severity because it has no limit.
+
+`usage.sh line` does not read stdin, so whatever does read it passes the cost in as
+`CLAUDE_USAGE_SESSION_COST`. `statusline.sh` and `wrap` already do this. In your own script:
+
+```bash
+cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
+usage_part=$(CLAUDE_USAGE_SESSION_COST="$cost" bash "$HOME/.claude/claude-usage" line 2>/dev/null)
+```
+
 ---
 
 ## Configuration
@@ -149,7 +170,8 @@ the defaults rather than printing nothing.
   "width": 10,
   "separator": " · ",
   "window": "{gauge} {name} {pct}{reset}",
-  "spend": "{gauge} {used}/{limit} ({pct})"
+  "spend": "{gauge} {used}/{limit} ({pct})",
+  "session": ""
 }
 ```
 
@@ -162,9 +184,10 @@ the defaults rather than printing nothing.
 | `separator` | ` · ` | between segments |
 | `window` | `{gauge} {name} {pct}{reset}` | layout of a rate-limit window |
 | `spend` | `{gauge} {used}/{limit} ({pct})` | layout of the credit pool |
+| `session` | *(empty: off)* | layout of the session cost, shown first; see [Session cost](#session-cost-opt-in) |
 
 Tokens — windows: `{gauge}` `{name}` `{pct}` `{reset}`. Spend: `{gauge}` `{used}` `{limit}`
-`{pct}`.
+`{pct}`. Session: `{cost}`.
 
 `color: auto` respects `NO_COLOR`, `FORCE_COLOR`, `TERM` and `COLORTERM`. The status line is never
 a tty (Claude Code captures the output), so env vars are the only signal available.
@@ -284,6 +307,8 @@ credits       $120.0 of $400  (30%, normal)
 ## Not included, deliberately
 
 No spend estimate derived from local token counts. That approach cannot tell plan-covered usage
-from credit-billed usage, so it disagrees with the real bill — which is why this exists.
+from credit-billed usage, so it disagrees with the real bill — which is why this exists. The
+opt-in [session cost](#session-cost-opt-in) is Claude Code's own per-session figure, passed through
+as-is. It is shown next to the account numbers, never folded into them.
 
 MIT
