@@ -113,10 +113,12 @@ re-running `usage.sh line`.
 | no colours | `{"color": "never"}` |
 | wider bar | `{"width": 20}` |
 | just the percentage | `{"window": "{name} {pct}", "spend": "{pct}"}` |
+| show this session's cost | `{"session": "{cost}"}` |
 
 Full key list: `style` (`dot`/`bar`/`bar-ascii`/`plain`), `warn`, `crit`, `color`
-(`auto`/`always`/`never`), `width`, `separator`, `window`, `spend`. Tokens are `{gauge}` `{name}`
-`{pct}` `{reset}` for windows and `{gauge}` `{used}` `{limit}` `{pct}` for spend. Severity drives
+(`auto`/`always`/`never`), `width`, `separator`, `window`, `spend`, `session`. Tokens are `{gauge}`
+`{name}` `{pct}` `{reset}` for windows, `{gauge}` `{used}` `{limit}` `{pct}` for spend, and `{cost}`
+for session. Severity drives
 glyph *and* colour, so it still reads with colour off.
 
 ## Troubleshooting
@@ -135,3 +137,8 @@ Run `claude-usage detect` first — it prints the plan and everything the API re
 Do not reintroduce a spend estimate derived from token counts. It cannot tell plan-covered usage
 from credit-billed usage, so it disagrees with the real bill. These figures are Anthropic's own
 accounting.
+
+`session` is the only exception, and it is opt-in. It passes through Claude Code's own
+per-session figure (stdin `.cost.total_cost_usd`, arriving as `CLAUDE_USAGE_SESSION_COST`) and is
+shown next to the account figures. Do not fold it into the windows or the credit pool. When the
+user's own script calls `line`, it must pass that env var itself or the segment stays empty.

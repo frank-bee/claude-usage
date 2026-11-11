@@ -10,10 +10,12 @@ if command -v jq >/dev/null 2>&1; then
   model=$(echo "$input" | jq -r '.model.display_name // ""')
   used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
   cwd=$(echo "$input" | jq -r '.cwd // ""')
+  cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
 else
   model=$(echo "$input" | python3 -c "import sys,json; print(json.load(sys.stdin).get('model',{}).get('display_name',''))" 2>/dev/null)
   used_pct=$(echo "$input" | python3 -c "import sys,json; v=json.load(sys.stdin).get('context_window',{}).get('used_percentage'); print(v if v is not None else '')" 2>/dev/null)
   cwd=$(echo "$input" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cwd',''))" 2>/dev/null)
+  cost=$(echo "$input" | python3 -c "import sys,json; v=json.load(sys.stdin).get('cost',{}).get('total_cost_usd'); print(v if v is not None else '')" 2>/dev/null)
 fi
 
 branch=""
@@ -35,7 +37,7 @@ if [ -n "$used_pct" ]; then
   ctx_part="${bar} ${pct_int}% ctx"
 fi
 
-usage_part=$(bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/scripts/usage.sh" line 2>/dev/null)
+usage_part=$(CLAUDE_USAGE_SESSION_COST="$cost" bash "${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/scripts/usage.sh" line 2>/dev/null)
 
 parts=()
 [ -n "$branch" ]      && parts+=("⎇ ${branch}")

@@ -29,6 +29,12 @@
 #   2. ~/.claude/.credentials.json - Claude Code's own credential file
 #   3. macOS Keychain item "Claude Code-credentials"
 #
+# Session cost: Claude Code puts the current session's cost on the statusline's
+# stdin (.cost.total_cost_usd), which `line` never reads. Callers that do read it
+# (statusline.sh, wrap.sh, or your own script) pass it in as
+# $CLAUDE_USAGE_SESSION_COST. It is shown only when the "session" config key is
+# set - off by default, see the note at the "session" key below.
+#
 # Caches are keyed by refresh token, which survives access-token rotation, so
 # two accounts never read each other's numbers.
 
@@ -118,6 +124,7 @@ CONFIG_FILE="${CLAUDE_USAGE_CONFIG:-$HOME/.claude/claude-usage.json}"
 DEFAULTS='{
   "window":    "{gauge} {name} {pct}{reset}",
   "spend":     "{gauge} {used}/{limit} ({pct})",
+  "session":   "",
   "style":     "dot",
   "color":     "auto",
   "warn":      70,
@@ -125,6 +132,10 @@ DEFAULTS='{
   "width":     10,
   "separator": " · "
 }'
+# "session" is empty - off - by default. It shows Claude Code's own figure for
+# this session, which Claude Code computes from token counts at list price: a
+# per-session estimate, not account accounting. It never replaces or adjusts
+# the windows or the credit pool, which stay Anthropic's numbers.
 
 cfg=$DEFAULTS
 if [ -r "$CONFIG_FILE" ]; then
@@ -185,9 +196,12 @@ WINDOWS_JQ='
 # which is a legitimate state. Keep the segment quiet but say *something*, and
 # park the real message in a file the user can be pointed at.
 render() {
-  [ -f "$USAGE_CACHE" ] || return 0
-  local out
-  out=$(render_jq 2>"$ERROR_LOG") || {
+  local cost="" out
+  if [ -n "${CLAUDE_USAGE_SESSION_COST:-}" ]; then
+    cost=$(LC_NUMERIC=C printf '$%.2f' "$CLAUDE_USAGE_SESSION_COST" 2>/dev/null) || cost=""
+  fi
+  [ -f "$USAGE_CACHE" ] || [ -n "$cost" ] || return 0
+  out=$(render_jq "$cost" 2>"$ERROR_LOG") || {
     printf '⚠︎ claude-usage: %.60s\n' \
       "$(head -1 "$ERROR_LOG" 2>/dev/null || echo "jq failed")"
     return 0
@@ -197,8 +211,10 @@ render() {
 }
 
 render_jq() {
+  local src="$USAGE_CACHE"
+  [ -f "$src" ] || src=/dev/stdin   # session cost alone, before the first fetch
   jq -r --argjson age "$(age_of "$USAGE_CACHE")" --argjson warn "$STALE_WARN" \
-        --argjson cfg "$cfg" --argjson usecolor "$USE_COLOR" "
+        --argjson cfg "$cfg" --argjson usecolor "$USE_COLOR" --arg cost "$1" "
     $WINDOWS_JQ"'
     # severity: 0 normal, 1 warning, 2 critical. Drives glyph AND colour, so the
     # distinction survives a terminal that shows no colour at all.
@@ -243,7 +259,15 @@ render_jq() {
       | gsub("  +"; " ") | sub("^ +"; "") | sub(" +$"; "")
       | if $cfg.style == "plain" then paint(.; $p) else . end;
 
-    [ ( norm[]
+    # session cost: plain text, no gauge or severity - there is no limit for it
+    # to be a fraction of.
+    def session:
+      if ($cfg.session // "") != "" and $cost != ""
+      then $cfg.session | gsub("\\{cost\\}"; $cost)
+                        | gsub("  +"; " ") | sub("^ +"; "") | sub(" +$"; "")
+      else empty end;
+
+    ( [ ( norm[]
         | .percent as $p
         | wname(.kind; .label) as $l
         | fill($cfg.window;
@@ -266,12 +290,14 @@ render_jq() {
         else empty end )
     ]
     | join($cfg.separator)
-    | if . == "" then empty
+    | if . == "" then ""   # not empty: `empty as $usage` would drop the session too
       elif $age > $warn
       then . + " ⚠︎" + (if $age >= 3600 then (($age / 3600) | floor | tostring) + "h"
                         else (($age / 60) | floor | tostring) + "m" end)
-      else . end
-  ' "$USAGE_CACHE"
+      else . end ) as $usage
+    | [session, $usage] | map(select(. != "")) | join($cfg.separator)
+    | if . == "" then empty else . end
+  ' "$src" <<<'{}'
 }
 
 refresh_if_stale() {
